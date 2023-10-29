@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -25,18 +26,27 @@ func NewEntry(h, m string) *Entry {
 	}
 }
 
-func (e *Entry) createEntry(s string) {
+func (e *Entry) setHeader(s string) {
 	var str string
 	arr := splitLine(s)
+	var re *regexp.Regexp
 
-	// Set header
-	if arr[0] == "TASK" && arr[len(arr)-1] == "***" {
+	if len(arr) > 0 {
+		return
+	}
+
+	re, err := regexp.Compile(arr[len(arr)-1])
+	if err != nil {
+		log.Println(err)
+	}
+
+	if arr[0] == "TASK" && re.Match([]byte("***")) {
 		for _, i := range arr {
 			str += i + " "
 		}
 		e.Header = str
 		e.HeaderDone = true
-	} else if arr[0] == "TASK" && arr[len(arr)-1] != "***" {
+	} else if arr[0] == "TASK" && !re.Match([]byte("***")) {
 		for _, i := range arr {
 			str += i + " "
 		}
@@ -46,19 +56,36 @@ func (e *Entry) createEntry(s string) {
 			str += i + " "
 		}
 		e.Header += str
-		for _, i := range arr {
-			str += i + " "
-		}
-		e.Header += str
 		if arr[len(arr)-1] == "***" {
 			e.HeaderDone = true
 		}
 	}
-
-	// Set Message
 }
 
-type Entries []Entry
+func (e *Entry) setMessage(s string) {
+	arr := splitLine(s)
+
+	states := []string{"ok:", "skipping:", "changed:", "included:"}
+
+	for _, state := range states {
+		if arr[0] == state && arr[len(arr)-1] != "{" {
+			e.Message = s
+		} else {
+			e.Message += s
+		}
+	}
+
+	if len(arr) == 0 {
+		e.MessageDone = true
+	}
+}
+
+func (e *Entry) clearEntry() {
+	e.Header = ""
+	e.Message = ""
+	e.HeaderDone = false
+	e.MessageDone = false
+}
 
 type Config struct {
 	SourcePath string
@@ -84,9 +111,20 @@ func (app *Config) LoadSource() error {
 }
 
 func (app *Config) ParseFile() {
+	e := NewEntry("", "")
 	sc := bufio.NewScanner(app.SourceFile)
 	for sc.Scan() {
-		checkHeader(sc.Text())
+		if !e.HeaderDone {
+			e.setHeader(sc.Text())
+			fmt.Println(e.Header)
+			continue
+		}
+		if !e.MessageDone {
+			e.setMessage(sc.Text())
+			continue
+		}
+
+		e.clearEntry()
 	}
 }
 

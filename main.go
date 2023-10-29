@@ -6,18 +6,56 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 )
 
 type Entry struct {
-	Header  string
-	Message string
+	Header      string
+	Message     string
+	HeaderDone  bool
+	MessageDone bool
 }
 
 func NewEntry(h, m string) *Entry {
 	return &Entry{
-		Header:  h,
-		Message: m,
+		Header:      h,
+		Message:     m,
+		HeaderDone:  false,
+		MessageDone: false,
 	}
+}
+
+func (e *Entry) createEntry(s string) {
+	var str string
+	arr := splitLine(s)
+
+	// Set header
+	if arr[0] == "TASK" && arr[len(arr)-1] == "***" {
+		for _, i := range arr {
+			str += i + " "
+		}
+		e.Header = str
+		e.HeaderDone = true
+	} else if arr[0] == "TASK" && arr[len(arr)-1] != "***" {
+		for _, i := range arr {
+			str += i + " "
+		}
+		e.Header = str
+	} else if !e.HeaderDone && e.Header != "" {
+		for _, i := range arr {
+			str += i + " "
+		}
+		e.Header += str
+		for _, i := range arr {
+			str += i + " "
+		}
+		e.Header += str
+		if arr[len(arr)-1] == "***" {
+			e.HeaderDone = true
+		}
+	}
+
+	// Set Message
 }
 
 type Entries []Entry
@@ -48,6 +86,7 @@ func (app *Config) LoadSource() error {
 func (app *Config) ParseFile() {
 	sc := bufio.NewScanner(app.SourceFile)
 	for sc.Scan() {
+		checkHeader(sc.Text())
 	}
 }
 
@@ -57,6 +96,11 @@ func checkArguments() error {
 	}
 
 	return nil
+}
+
+func splitLine(s string) []string {
+	arr := strings.Split(s, " ")
+	return arr
 }
 
 func main() {

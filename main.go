@@ -12,12 +12,12 @@ import (
 
 type Entry struct {
 	Header      string
-	Message     string
+	Message     []string
 	HeaderDone  bool
 	MessageDone bool
 }
 
-func NewEntry(h, m string) *Entry {
+func NewEntry(h string, m []string) *Entry {
 	return &Entry{
 		Header:      h,
 		Message:     m,
@@ -30,30 +30,23 @@ func (e *Entry) setHeader(s string) {
 	var str string
 	arr := splitLine(s)
 
-	if len(arr) > 0 {
-		return
-	}
-
 	re, err := regexp.Compile("\\*\\*\\*")
 	if err != nil {
 		log.Println(err)
 	}
 
 	if arr[0] == "TASK" && re.Match([]byte(arr[len(arr)-1])) {
-		fmt.Println(s)
 		for _, i := range arr {
 			str += i + " "
 		}
 		e.Header = str
 		e.HeaderDone = true
 	} else if arr[0] == "TASK" && !re.Match([]byte(arr[len(arr)-1])) {
-		fmt.Println(s)
 		for _, i := range arr {
 			str += i + " "
 		}
 		e.Header = str
 	} else if !e.HeaderDone && e.Header != "" {
-		fmt.Println(s)
 		for _, i := range arr {
 			str += i + " "
 		}
@@ -69,24 +62,48 @@ func (e *Entry) setMessage(s string) {
 
 	states := []string{"ok:", "skipping:", "changed:", "included:"}
 
-	if len(arr) == 0 {
+	if len(arr) == 1 {
 		e.MessageDone = true
 	}
 
 	for _, state := range states {
 		if arr[0] == state && arr[len(arr)-1] != "{" {
-			e.Message = s
+			e.Message = append(e.Message, s)
 		} else {
-			e.Message += s
+			e.Message = append(e.Message, s)
 		}
+		return
 	}
 }
 
 func (e *Entry) clearEntry() {
 	e.Header = ""
-	e.Message = ""
+	e.Message = []string{}
 	e.HeaderDone = false
 	e.MessageDone = false
+}
+
+type Entries []Entry
+
+func (es Entries) FilterChanged() {
+	var indexes []int
+
+	for _, e := range es {
+		for i, m := range e.Message {
+			arr := splitLine(m)
+			if arr[0] == "changed:" {
+				indexes = append(indexes, i)
+			}
+		}
+		if len(indexes) > 0 {
+			fmt.Println(e.Header)
+			for _, i := range indexes {
+				fmt.Println(e.Message[i])
+			}
+			fmt.Println()
+		}
+		indexes = []int{}
+	}
 }
 
 type Config struct {
@@ -112,23 +129,26 @@ func (app *Config) LoadSource() error {
 	return nil
 }
 
-func (app *Config) ParseFile() {
-	e := NewEntry("", "")
+func (app *Config) ParseFile() Entries {
+	var entries []Entry
+	e := NewEntry("", []string{})
 	sc := bufio.NewScanner(app.SourceFile)
 	for sc.Scan() {
 		if !e.HeaderDone {
-			fmt.Println("Header set to false")
 			e.setHeader(sc.Text())
 			continue
 		}
 		if !e.MessageDone {
-			fmt.Println("Message set to false")
 			e.setMessage(sc.Text())
 			continue
 		}
 
+		entries = append(entries, *e)
+
 		e.clearEntry()
 	}
+
+	return entries
 }
 
 func checkArguments() error {
@@ -156,5 +176,6 @@ func main() {
 		log.Panic(err)
 	}
 
-	app.ParseFile()
+	entries := app.ParseFile()
+	entries.FilterChanged()
 }

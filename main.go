@@ -29,29 +29,31 @@ func NewEntry(h, m string) *Entry {
 func (e *Entry) setHeader(s string) {
 	var str string
 	arr := splitLine(s)
-	var re *regexp.Regexp
 
 	if len(arr) > 0 {
 		return
 	}
 
-	re, err := regexp.Compile(arr[len(arr)-1])
+	re, err := regexp.Compile("\\*\\*\\*")
 	if err != nil {
 		log.Println(err)
 	}
 
-	if arr[0] == "TASK" && re.Match([]byte("***")) {
+	if arr[0] == "TASK" && re.Match([]byte(arr[len(arr)-1])) {
+		fmt.Println(s)
 		for _, i := range arr {
 			str += i + " "
 		}
 		e.Header = str
 		e.HeaderDone = true
-	} else if arr[0] == "TASK" && !re.Match([]byte("***")) {
+	} else if arr[0] == "TASK" && !re.Match([]byte(arr[len(arr)-1])) {
+		fmt.Println(s)
 		for _, i := range arr {
 			str += i + " "
 		}
 		e.Header = str
 	} else if !e.HeaderDone && e.Header != "" {
+		fmt.Println(s)
 		for _, i := range arr {
 			str += i + " "
 		}
@@ -67,16 +69,16 @@ func (e *Entry) setMessage(s string) {
 
 	states := []string{"ok:", "skipping:", "changed:", "included:"}
 
+	if len(arr) == 0 {
+		e.MessageDone = true
+	}
+
 	for _, state := range states {
 		if arr[0] == state && arr[len(arr)-1] != "{" {
 			e.Message = s
 		} else {
 			e.Message += s
 		}
-	}
-
-	if len(arr) == 0 {
-		e.MessageDone = true
 	}
 }
 
@@ -115,11 +117,12 @@ func (app *Config) ParseFile() {
 	sc := bufio.NewScanner(app.SourceFile)
 	for sc.Scan() {
 		if !e.HeaderDone {
+			fmt.Println("Header set to false")
 			e.setHeader(sc.Text())
-			fmt.Println(e.Header)
 			continue
 		}
 		if !e.MessageDone {
+			fmt.Println("Message set to false")
 			e.setMessage(sc.Text())
 			continue
 		}
